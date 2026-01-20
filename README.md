@@ -1,4 +1,4 @@
-# Mindful Tab Switch
+# Blockbs
 
 A browser extension that helps you stay focused by creating a mindful barrier when switching to distracting websites. Before accessing sites like Twitter, Reddit, or YouTube, you'll be prompted to explain your intention in at least 50 characters.
 
@@ -29,7 +29,7 @@ A browser extension that helps you stay focused by creating a mindful barrier wh
 
 4. **Pin the Extension** (Optional)
    - Click the puzzle piece icon in your toolbar
-   - Find "Mindful Tab Switch" and click the pin icon
+   - Find "BlockBs" and click the pin icon
 
 ### Firefox (Alternative Instructions)
 
@@ -68,7 +68,7 @@ The extension comes pre-configured with these commonly distracting sites:
 - instagram.com
 - reddit.com
 - youtube.com
-- tiktok.com
+
 
 You can add or remove any sites you want!
 
