@@ -13,34 +13,50 @@ const DEFAULT_BLOCKED_SITES = [
   'reddit.com',
 ];
 
-// Initialize storage with default values
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.sync.get(['blockedSites', 'enabled'], (result) => {
-    if (!result.blockedSites) {
-      chrome.storage.sync.set({ blockedSites: DEFAULT_BLOCKED_SITES });
-    }
-    if (result.enabled === undefined) {
-      chrome.storage.sync.set({ enabled: true });
-    }
-  });
-});
-
-// Listen for tab activation (switching)
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  await checkAndShowBarrier(activeInfo.tabId);
-  lastActiveTabId = activeInfo.tabId;
-});
-
-// Listen for tab updates (navigation, page load)
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  // Only trigger when URL changes or page completes loading
-  if (changeInfo.status === 'complete' && tab.url) {
-    await checkAndShowBarrier(tabId);
+// Initialize storage with default values and request permissions
+chrome.runtime.onInstalled.addListener(async () => {
+  const { blockedSites, enabled } = await chrome.storage.sync.get(['blockedSites', 'enabled']);
+  
+  if (!blockedSites) {
+    await chrome.storage.sync.set({ blockedSites: DEFAULT_BLOCKED_SITES });
   }
+  if (enabled === undefined) {
+    await chrome.storage.sync.set({ enabled: true });
+  }
+  
+  // Request optional permissions for default sites
+  await requestPermissionsForSites(DEFAULT_BLOCKED_SITES);
 });
+
+// Helper to request permissions for sites
+async function requestPermissionsForSites(sites) {
+  const origins = sites.map(site => `*://*.${site}/*`);
+  
+  try {
+    const granted = await chrome.permissions.request({
+      origins: origins
+    });
+    
+    if (granted) {
+      console.log('Permissions granted for:', sites);
+    } else {
+      console.log('Permissions denied by user');
+    }
+  } catch (error) {
+    console.log('Permission request failed:', error);
+  }
+}
+
+// Listen for navigation completion
+chrome.webNavigation.onCompleted.addListener(async (details) => {
+  // Only main frame (not iframes)
+  if (details.frameId !== 0) return;
+  
+  await checkAndShowBarrier(details.tabId, details.url);
+}, { url: [{ schemes: ['http', 'https'] }] });
 
 // Helper function to check if barrier should be shown and display it
-async function checkAndShowBarrier(tabId) {
+async function checkAndShowBarrier(tabId, url) {
   try {
     const { enabled, blockedSites } = await chrome.storage.sync.get(['enabled', 'blockedSites']);
     
@@ -52,11 +68,10 @@ async function checkAndShowBarrier(tabId) {
       return;
     }
 
-    const tab = await chrome.tabs.get(tabId);
-    console.log('Checking tab:', tab.url);
+    console.log('Checking tab:', url);
     
     // Check if this tab needs a barrier
-    const shouldBlock = shouldShowBarrier(tab.url, blockedSites || DEFAULT_BLOCKED_SITES);
+    const shouldBlock = shouldShowBarrier(url, blockedSites || DEFAULT_BLOCKED_SITES);
     console.log('Should show barrier:', shouldBlock);
     
     if (shouldBlock) {
@@ -70,17 +85,53 @@ async function checkAndShowBarrier(tabId) {
         return;
       }
       
-      console.log('Sending SHOW_BARRIER message to tab', tabId);
+      // Check if we have permission for this origin
+      const urlObj = new URL(url);
+      const hostname = urlObj.hostname.replace(/^www\./, '');
+      const origin = `*://*.${hostname}/*`;
       
-      // Show the barrier by injecting a message to content script
+      const hasPermission = await chrome.permissions.contains({
+        origins: [origin]
+      });
+      
+      if (!hasPermission) {
+        console.log('No permission for', origin, '- cannot show barrier');
+        return;
+      }
+      
+      console.log('Dynamically injecting content script into tab', tabId);
+      
+      // Dynamically inject content script and CSS
       try {
-        await chrome.tabs.sendMessage(tabId, {
-          type: 'SHOW_BARRIER',
-          url: tab.url
+        await chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          files: ['content.js']
         });
-        console.log('Barrier message sent successfully');
+        
+        await chrome.scripting.insertCSS({
+          target: { tabId: tabId },
+          files: ['modal.css']
+        });
+        
+        console.log('Scripts injected, sending SHOW_BARRIER message');
+        
+        // Wait a moment for scripts to initialize
+        setTimeout(async () => {
+          try {
+            await chrome.tabs.sendMessage(tabId, {
+              type: 'SHOW_BARRIER',
+              url: url,
+              minChars: 50,
+              visitCount: 0
+            });
+            console.log('Barrier message sent successfully');
+          } catch (error) {
+            console.error('Could not send message:', error);
+          }
+        }, 100);
+        
       } catch (error) {
-        console.error('Could not inject barrier:', error);
+        console.error('Could not inject scripts:', error);
       }
     }
   } catch (error) {

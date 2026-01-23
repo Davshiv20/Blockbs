@@ -90,6 +90,30 @@ async function addSite() {
     return;
   }
   
+  // Request permission for this site
+  const origin = `*://*.${cleanSite}/*`;
+  
+  try {
+    const granted = await chrome.permissions.request({
+      origins: [origin]
+    });
+    
+    if (!granted) {
+      input.placeholder = 'Permission denied for this site';
+      setTimeout(() => {
+        input.placeholder = 'e.g., twitter.com';
+      }, 2000);
+      return;
+    }
+  } catch (error) {
+    console.error('Permission request failed:', error);
+    input.placeholder = 'Could not request permission';
+    setTimeout(() => {
+      input.placeholder = 'e.g., twitter.com';
+    }, 2000);
+    return;
+  }
+  
   // Add the new site
   const updatedSites = [...currentSites, cleanSite];
   await chrome.storage.sync.set({ blockedSites: updatedSites });
@@ -104,5 +128,17 @@ async function removeSite(site) {
   const updatedSites = (blockedSites || []).filter(s => s !== site);
   
   await chrome.storage.sync.set({ blockedSites: updatedSites });
+  
+  // Optionally revoke permission for this site
+  const origin = `*://*.${site}/*`;
+  try {
+    await chrome.permissions.remove({
+      origins: [origin]
+    });
+    console.log('Permission removed for', site);
+  } catch (error) {
+    console.log('Could not remove permission:', error);
+  }
+  
   renderSitesList(updatedSites);
 }
