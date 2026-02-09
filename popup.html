@@ -21,6 +21,17 @@
       </label>
     </div>
 
+    <div class="timer-section">
+      <h2>Timer Duration</h2>
+      <p class="description">How long before the barrier reappears</p>
+      <select id="timerDuration" class="timer-select">
+        <option value="5">5 minutes</option>
+        <option value="10">10 minutes</option>
+        <option value="15">15 minutes</option>
+        <option value="30">30 minutes</option>
+      </select>
+    </div>
+
     <section class="sites-section">
       <h2>Monitored Sites</h2>
       <p class="description">Add sites that require intentional access</p>
@@ -36,6 +47,11 @@
       </div>
 
       <ul id="sitesList" class="sites-list"></ul>
+    </section>
+
+    <section class="history-section">
+      <h2>Recent Reasons</h2>
+      <ul id="reasonList" class="reason-list"></ul>
     </section>
 
     <footer>

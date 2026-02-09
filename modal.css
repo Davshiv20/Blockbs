@@ -97,11 +97,28 @@
   color: #999;
 }
 
+.mindful-barrier-subtext {
+  font-size: 13px;
+  color: #666;
+  margin: -8px 0 16px 0;
+  line-height: 1.4;
+}
+
 .mindful-barrier-counter {
   text-align: right;
-  margin: 6px 0 16px;
+  margin: 6px 0 0;
   font-size: 12px;
   color: #666;
+}
+
+.mindful-validation-feedback {
+  font-size: 12px;
+  min-height: 18px;
+  margin: 4px 0 12px;
+}
+
+.mindful-validation-fail {
+  color: #c0392b;
 }
 
 #mindful-char-count {
@@ -195,22 +212,37 @@
   right: 20px;
   background: #806b49;
   color: white;
-  padding: 8px 16px;
+  padding: 10px 18px;
   border: 1px solid #806b49;
   font-family: 'Playfair Display', serif;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   z-index: 2147483646;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   border-radius: 4px;
   user-select: none;
-  pointer-events: none;
-  opacity: 0.85;
+  opacity: 1;
   transition: opacity 0.2s ease;
 }
 
 .mindful-timer:hover {
   opacity: 1;
+}
+
+/* Timer warning — last 60 seconds */
+.mindful-timer-warning {
+  background: #c0392b;
+  border-color: #c0392b;
+  animation: timerPulse 1s ease-in-out infinite;
+}
+
+@keyframes timerPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* Ensure timer doesn't interfere with page content */

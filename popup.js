@@ -19,20 +19,31 @@ function setupEventListeners() {
       addSite();
     }
   });
+
+  // Timer duration change
+  document.getElementById('timerDuration').addEventListener('change', (e) => {
+    chrome.storage.sync.set({ timerMinutes: parseInt(e.target.value, 10) });
+  });
 }
 
 async function loadSettings() {
-  const { enabled, blockedSites } = await chrome.storage.sync.get(['enabled', 'blockedSites']);
-  
+  const { enabled, blockedSites, timerMinutes, reasonHistory } = await chrome.storage.sync.get(['enabled', 'blockedSites', 'timerMinutes', 'reasonHistory']);
+
   // Set toggle state
   document.getElementById('enableToggle').checked = enabled !== false;
-  
+
+  // Set timer duration
+  document.getElementById('timerDuration').value = timerMinutes || 5;
+
   // Load sites list
   if (blockedSites && blockedSites.length > 0) {
     renderSitesList(blockedSites);
   } else {
     showEmptyState();
   }
+
+  // Load reason history
+  renderReasonHistory(reasonHistory || []);
 }
 
 function renderSitesList(sites) {
@@ -76,7 +87,18 @@ async function addSite() {
     .replace(/\/+$/, '');
   
   if (!cleanSite) return;
-  
+
+  // Validate domain format: must have at least one dot and valid TLD
+  const domainRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/;
+  if (!domainRegex.test(cleanSite)) {
+    input.value = '';
+    input.placeholder = 'Enter a valid domain (e.g., reddit.com)';
+    setTimeout(() => {
+      input.placeholder = 'e.g., twitter.com';
+    }, 2000);
+    return;
+  }
+
   const { blockedSites } = await chrome.storage.sync.get(['blockedSites']);
   const currentSites = blockedSites || [];
   
@@ -121,6 +143,43 @@ async function addSite() {
   // Clear input and refresh list
   input.value = '';
   renderSitesList(updatedSites);
+}
+
+function renderReasonHistory(history) {
+  const list = document.getElementById('reasonList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (history.length === 0) {
+    list.innerHTML = '<div class="empty-state">No history yet</div>';
+    return;
+  }
+
+  history.slice().reverse().forEach(entry => {
+    const li = document.createElement('li');
+    li.className = 'reason-item';
+
+    const truncated = entry.reason.length > 60 ? entry.reason.substring(0, 60) + '...' : entry.reason;
+    const timeAgo = getRelativeTime(entry.timestamp);
+
+    li.innerHTML = `
+      <div class="reason-site">${entry.site}</div>
+      <div class="reason-text">${truncated}</div>
+      <div class="reason-time">${timeAgo}</div>
+    `;
+    list.appendChild(li);
+  });
+}
+
+function getRelativeTime(timestamp) {
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 async function removeSite(site) {

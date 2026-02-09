@@ -6,7 +6,8 @@
   "permissions": [
     "storage",
     "scripting",
-    "webNavigation"
+    "webNavigation",
+    "alarms"
   ],
   "host_permissions": [],
   "optional_host_permissions": [

@@ -3,7 +3,7 @@ let lastActiveTabId = null;
 let pendingTabSwitch = new Map(); // Maps tabId to { timestamp, approved }
 
 
-const APPROVAL_DURATION = 5 * 60 * 1000;
+const DEFAULT_TIMER_MINUTES = 5;
 // Default blocked sites - user can customize via popup
 const DEFAULT_BLOCKED_SITES = [
   'twitter.com',
@@ -78,8 +78,9 @@ async function checkAndShowBarrier(tabId, url) {
       // Check if this tab was recently approved
       const approval = pendingTabSwitch.get(tabId);
       const now = Date.now();
-      
-      if (approval && approval.approved && (now - approval.timestamp < APPROVAL_DURATION)) {
+      const approvalDuration = approval?.durationMs || (DEFAULT_TIMER_MINUTES * 60 * 1000);
+
+      if (approval && approval.approved && (now - approval.timestamp < approvalDuration)) {
         // Recently approved, allow it
         console.log('Tab recently approved, skipping barrier');
         return;
@@ -105,7 +106,7 @@ async function checkAndShowBarrier(tabId, url) {
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tabId },
-          files: ['content.js']
+          files: ['validation.js', 'content.js']
         });
         
         await chrome.scripting.insertCSS({
@@ -121,7 +122,7 @@ async function checkAndShowBarrier(tabId, url) {
             await chrome.tabs.sendMessage(tabId, {
               type: 'SHOW_BARRIER',
               url: url,
-              minChars: 50,
+              minChars: 30,
               visitCount: 0
             });
             console.log('Barrier message sent successfully');
@@ -141,20 +142,55 @@ async function checkAndShowBarrier(tabId, url) {
 
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'BARRIER_APPROVED') {
-    // Mark this tab as approved for the next 5 minutes
-    pendingTabSwitch.set(sender.tab.id, {
-      timestamp: Date.now(),
-      approved: true
-    });
+  if (message.type === 'CLOSE_TAB') {
+    const tabId = sender.tab.id;
+    chrome.tabs.remove(tabId);
+    return;
+  }
 
-    chrome.tabs.sendMessage(sender.tab.id, {
-      type: 'START_TIMER',
-      duration: APPROVAL_DURATION
-    }).catch(error => {
-      console.error('Could not send timer message:', error);
+  if (message.type === 'BARRIER_APPROVED') {
+    const tabId = sender.tab.id;
+
+    // Read configured timer duration, save reason, then set up approval
+    chrome.storage.sync.get(['timerMinutes', 'reasonHistory'], (result) => {
+      const minutes = result.timerMinutes || DEFAULT_TIMER_MINUTES;
+      const durationMs = minutes * 60 * 1000;
+
+      // Mark this tab as approved
+      pendingTabSwitch.set(tabId, {
+        timestamp: Date.now(),
+        approved: true,
+        durationMs: durationMs
+      });
+
+      // Create an alarm so we get notified even if the service worker sleeps
+      chrome.alarms.create(`timer-expired-${tabId}`, { delayInMinutes: minutes });
+
+      chrome.tabs.sendMessage(tabId, {
+        type: 'START_TIMER',
+        duration: durationMs,
+        timerMinutes: minutes
+      }).catch(error => {
+        console.error('Could not send timer message:', error);
+      });
+
+      // Save reason to history
+      if (message.reason) {
+        const history = result.reasonHistory || [];
+        history.push({
+          reason: message.reason,
+          site: message.site || 'unknown',
+          timestamp: Date.now()
+        });
+        // Cap at 20 entries
+        while (history.length > 20) {
+          history.shift();
+        }
+        chrome.storage.sync.set({ reasonHistory: history });
+      }
+
+      sendResponse({ success: true });
     });
-    sendResponse({ success: true });
   }
   return true;
 });
@@ -176,11 +212,30 @@ function shouldShowBarrier(url, blockedSites) {
   }
 }
 
+// Handle timer expiration via alarms (works even if service worker was asleep)
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name.startsWith('timer-expired-')) {
+    const tabId = parseInt(alarm.name.replace('timer-expired-', ''), 10);
+    pendingTabSwitch.delete(tabId);
+
+    chrome.tabs.sendMessage(tabId, { type: 'TIME_EXPIRED' }).catch(error => {
+      console.log('Could not send TIME_EXPIRED (tab may be closed):', error);
+    });
+  }
+});
+
+// Clean up alarms when tabs close
+chrome.tabs.onRemoved.addListener((tabId) => {
+  pendingTabSwitch.delete(tabId);
+  chrome.alarms.clear(`timer-expired-${tabId}`);
+});
+
 // Clean up old approvals periodically
 setInterval(() => {
   const now = Date.now();
   for (const [tabId, approval] of pendingTabSwitch.entries()) {
-    if (now - approval.timestamp > APPROVAL_DURATION) {
+    const duration = approval.durationMs || (DEFAULT_TIMER_MINUTES * 60 * 1000);
+    if (now - approval.timestamp > duration) {
       pendingTabSwitch.delete(tabId);
     }
   }
