@@ -264,23 +264,77 @@ header h1 {
 
 .reason-list {
   list-style: none;
-  max-height: 180px;
+  max-height: 220px;
   overflow-y: auto;
 }
 
-.reason-item {
-  padding: 10px 12px;
-  background: #fafafa;
+.reason-group {
+  margin-bottom: 6px;
   border: 1px solid #eee;
   border-radius: 5px;
-  margin-bottom: 6px;
+  overflow: hidden;
 }
 
-.reason-site {
-  font-size: 12px;
+.reason-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.reason-group-header:hover {
+  background: #f0f0f0;
+}
+
+.reason-group-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reason-group-site {
+  font-size: 13px;
+  font-weight: 500;
+  color: #000;
+}
+
+.reason-group-count {
+  font-size: 11px;
   font-weight: 500;
   color: #806b49;
-  margin-bottom: 2px;
+  background: rgba(128, 107, 73, 0.1);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.reason-group-arrow {
+  font-size: 14px;
+  color: #999;
+  transition: transform 0.2s;
+}
+
+.reason-group.open .reason-group-arrow {
+  transform: rotate(90deg);
+}
+
+.reason-group-dropdown {
+  list-style: none;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.reason-group.open .reason-group-dropdown {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.reason-dropdown-item {
+  padding: 8px 12px;
+  border-top: 1px solid #eee;
 }
 
 .reason-text {

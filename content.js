@@ -7,6 +7,19 @@ let timerEndTime = null;
 let currentSiteName = null;
 let currentTimerMinutes = 5;
 
+// Safe wrapper for chrome.runtime.sendMessage to handle invalidated context
+function safeSendMessage(msg) {
+  try {
+    if (chrome.runtime?.id) {
+      chrome.runtime.sendMessage(msg);
+    }
+  } catch (e) {
+    // Extension context invalidated (e.g. after reload/update) — clean up
+    removeBarrier();
+    removeTimer();
+  }
+}
+
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Content script received message:', message);
@@ -198,7 +211,7 @@ function showBarrier(url) {
       const result = validateReason(reason);
       if (result.valid) {
         console.log('Tab access reason:', reason.trim());
-        chrome.runtime.sendMessage({
+        safeSendMessage({
           type: 'BARRIER_APPROVED',
           reason: reason.trim(),
           site: currentSiteName || 'unknown'
@@ -305,7 +318,7 @@ function showTimeExpiredAlert() {
     const result = validateReason(reason);
     if (result.valid) {
       console.log('Extended time reason:', reason.trim());
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         type: 'BARRIER_APPROVED',
         reason: reason.trim(),
         site: currentSiteName || 'unknown'
@@ -320,7 +333,7 @@ function showTimeExpiredAlert() {
 
   // Leave Site — close the tab via background script
   cancelBtn.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'CLOSE_TAB' });
+    safeSendMessage({ type: 'CLOSE_TAB' });
     removeBarrier();
   });
 }

@@ -150,23 +150,64 @@ function renderReasonHistory(history) {
   if (!list) return;
   list.innerHTML = '';
 
-  if (history.length === 0) {
-    list.innerHTML = '<div class="empty-state">No history yet</div>';
+  // Filter to last 24 hours
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const recent = history.filter(entry => entry.timestamp >= oneDayAgo);
+
+  if (recent.length === 0) {
+    list.innerHTML = '<div class="empty-state">No activity in the last 24 hours</div>';
     return;
   }
 
-  history.slice().reverse().forEach(entry => {
+  // Group by site
+  const grouped = {};
+  recent.forEach(entry => {
+    if (!grouped[entry.site]) grouped[entry.site] = [];
+    grouped[entry.site].push(entry);
+  });
+
+  // Sort sites by most recent access
+  const sortedSites = Object.keys(grouped).sort((a, b) => {
+    const latestA = Math.max(...grouped[a].map(e => e.timestamp));
+    const latestB = Math.max(...grouped[b].map(e => e.timestamp));
+    return latestB - latestA;
+  });
+
+  sortedSites.forEach(site => {
+    const entries = grouped[site].sort((a, b) => b.timestamp - a.timestamp);
     const li = document.createElement('li');
-    li.className = 'reason-item';
+    li.className = 'reason-group';
 
-    const truncated = entry.reason.length > 60 ? entry.reason.substring(0, 60) + '...' : entry.reason;
-    const timeAgo = getRelativeTime(entry.timestamp);
-
-    li.innerHTML = `
-      <div class="reason-site">${entry.site}</div>
-      <div class="reason-text">${truncated}</div>
-      <div class="reason-time">${timeAgo}</div>
+    const header = document.createElement('div');
+    header.className = 'reason-group-header';
+    header.innerHTML = `
+      <div class="reason-group-info">
+        <span class="reason-group-site">${site}</span>
+        <span class="reason-group-count">${entries.length}</span>
+      </div>
+      <span class="reason-group-arrow">&#8250;</span>
     `;
+
+    const dropdown = document.createElement('ul');
+    dropdown.className = 'reason-group-dropdown';
+
+    entries.forEach(entry => {
+      const item = document.createElement('li');
+      item.className = 'reason-dropdown-item';
+      const truncated = entry.reason.length > 80 ? entry.reason.substring(0, 80) + '...' : entry.reason;
+      item.innerHTML = `
+        <div class="reason-text">${truncated}</div>
+        <div class="reason-time">${getRelativeTime(entry.timestamp)}</div>
+      `;
+      dropdown.appendChild(item);
+    });
+
+    header.addEventListener('click', () => {
+      li.classList.toggle('open');
+    });
+
+    li.appendChild(header);
+    li.appendChild(dropdown);
     list.appendChild(li);
   });
 }
